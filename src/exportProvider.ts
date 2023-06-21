@@ -1,18 +1,17 @@
-'use strict';
 import * as Url from 'url';
-import * as fs from 'fs';
+import { readFileBinary, readFileUtf8, writeFile } from './file'
 
 const gltfMimeTypes: any = {
-    'image/png' : ['png'],
-    'image/jpeg' : ['jpg', 'jpeg'],
-    'image/ktx' : ['ktx'],
-    'image/ktx2' : ['ktx2'],
-    'image/webp' : ['webp'],
-    'image/vnd-ms.dds' : ['dds'],
-    'text/plain' : ['glsl', 'vert', 'vs', 'frag', 'fs', 'txt'],
-    'audio/wav' : ['wav'],
-    'application/gltf-buffer' : ['glbuf', 'glbin'],
-    'application/octet-stream' : ['bin']
+    'image/png': ['png'],
+    'image/jpeg': ['jpg', 'jpeg'],
+    'image/ktx': ['ktx'],
+    'image/ktx2': ['ktx2'],
+    'image/webp': ['webp'],
+    'image/vnd-ms.dds': ['dds'],
+    'text/plain': ['glsl', 'vert', 'vs', 'frag', 'fs', 'txt'],
+    'audio/wav': ['wav'],
+    'application/gltf-buffer': ['glbuf', 'glbin'],
+    'application/octet-stream': ['bin']
 };
 
 interface IUriData {
@@ -49,7 +48,7 @@ export function guessMimeType(filename: string): string {
     return 'application/octet-stream';
 }
 
-function isBase64 (uri: string): boolean {
+function isBase64(uri: string): boolean {
     return uri.length < 5 ? false : uri.substring(0, 5) === 'data:';
 }
 
@@ -57,7 +56,7 @@ function decodeBase64(uri: string): Buffer {
     return Buffer.from(uri.split(',')[1], 'base64');
 }
 
-function dataFromUri(buffer: any, basePath: string): IUriData | null {
+async function dataFromUri(buffer: any, basePath: string): Promise<IUriData | null> {
     if (buffer.uri == null) {
         return null;
     }
@@ -76,7 +75,8 @@ function dataFromUri(buffer: any, basePath: string): IUriData | null {
         if (mimeType == null) {
             mimeType = guessMimeType(fullUri);
         }
-        return { mimeType: mimeType, buffer: fs.readFileSync(fullUri) };
+        const resultBuffer = await readFileBinary(fullUri)
+        return { mimeType: mimeType, buffer: resultBuffer };
     }
 }
 
@@ -87,9 +87,9 @@ function dataFromUri(buffer: any, basePath: string): IUriData | null {
  * @param bufferIndex index into the buffers array
  * @param basePath path name in which the buffer file will be present.
  */
-export function getBuffer(glTF: any, bufferIndex: number, basePath: string, binBuffer: Buffer | null = null): Buffer | null {
+export async function getBuffer(glTF: any, bufferIndex: number, basePath: string, binBuffer: Buffer | null = null): Promise<Buffer | null> {
     const gltfBuffer = glTF.buffers[bufferIndex];
-    const data = dataFromUri(gltfBuffer, basePath);
+    const data = await dataFromUri(gltfBuffer, basePath);
     if (data != null) {
         return data.buffer;
     }
@@ -123,10 +123,10 @@ export function alignedLength(value: number): number {
  * @param sourceFilename input glTF filename
  * @param outputFilename output GLB filename
  */
-export function ConvertGltfToGLB(sourceFilename: string, outputFilename: string) {
-    const gltfContent = fs.readFileSync(sourceFilename, 'utf8');
+export async function ConvertGltfToGLB(sourceFilename: string, outputFilename: string) {
+    const gltfContent = await readFileUtf8(sourceFilename);
     const gltf = JSON.parse(gltfContent);
-    ConvertToGLB(gltf, sourceFilename, outputFilename);
+    await ConvertToGLB(gltf, sourceFilename, outputFilename);
 }
 
 /**
@@ -138,7 +138,7 @@ export function ConvertGltfToGLB(sourceFilename: string, outputFilename: string)
  * @param sourceFilename input glTF filename
  * @param outputFilename output GLB filename
  */
-export function ConvertToGLB(gltf: any, sourceFilename: string, outputFilename: string) {
+export async function ConvertToGLB(gltf: any, sourceFilename: string, outputFilename: string) {
     const Binary = {
         Magic: 0x46546C67
     };
@@ -152,7 +152,7 @@ export function ConvertToGLB(gltf: any, sourceFilename: string, outputFilename: 
         // Get current buffers already defined in bufferViews
         for (; bufferIndex < gltf.buffers.length; bufferIndex++) {
             const buffer = gltf.buffers[bufferIndex];
-            const data = dataFromUri(buffer, sourceFilename);
+            const data = await dataFromUri(buffer, sourceFilename);
             if (data == null) {
                 continue;
             }
@@ -194,7 +194,7 @@ export function ConvertToGLB(gltf: any, sourceFilename: string, outputFilename: 
 
     if (gltf.images) {
         for (const image of gltf.images) {
-            const data = dataFromUri(image, sourceFilename);
+            const data = await dataFromUri(image, sourceFilename);
             if (data == null) {
                 delete image['uri'];
                 continue;
@@ -206,7 +206,7 @@ export function ConvertToGLB(gltf: any, sourceFilename: string, outputFilename: 
 
     if (gltf.shaders) {
         for (const shader of gltf.shaders) {
-            const data = dataFromUri(shader, sourceFilename);
+            const data = await dataFromUri(shader, sourceFilename);
             if (data == null) {
                 delete shader['uri'];
                 continue;
@@ -223,7 +223,7 @@ export function ConvertToGLB(gltf: any, sourceFilename: string, outputFilename: 
                 const extensionProperty = extension[extensionPropertyName];
                 if (extensionProperty instanceof Array) {
                     for (const buffer of extensionProperty) {
-                        const data = dataFromUri(buffer, sourceFilename);
+                        const data = await dataFromUri(buffer, sourceFilename);
                         if (data == null) {
                             continue;
                         }
@@ -280,5 +280,5 @@ export function ConvertToGLB(gltf: any, sourceFilename: string, outputFilename: 
         outputBuffers[i].copy(finalBuffer, bufIndex + bufferIndexOffset);
     }
 
-    fs.writeFileSync(outputFilename, finalBuffer, 'binary');
+    await writeFile(outputFilename, finalBuffer, 'binary');
 }

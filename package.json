@@ -1,7 +1,7 @@
 {
-  "name": "gltf-import-export",
-  "version": "1.0.22",
-  "description": "Convert between GLB and GLTF files",
+  "name": "gltf-import-export-async",
+  "version": "1.0.0",
+  "description": "Convert between GLB and GLTF files, async way",
   "main": "dist/index.js",
   "bin": "dist/tool.js",
   "typings": "dist/index.d.ts",
@@ -12,7 +12,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/najadojo/gltf-import-export.git"
+    "url": "git+https://github.com/castrolol/gltf-import-export-async.git"
   },
   "keywords": [
     "GLTF",
@@ -21,20 +21,19 @@
     "import",
     "export"
   ],
-  "author": "Jamie Marconi",
+  "author": "Castrolol",
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/najadojo/gltf-import-export/issues"
+    "url": "https://github.com/castrolol/gltf-import-export-async/issues"
   },
-  "homepage": "https://github.com/najadojo/gltf-import-export#readme",
+  "homepage": "https://github.com/castrolol/gltf-import-export-async#readme",
   "dependencies": {
     "yargs": "^16.2.0"
   },
   "devDependencies": {
-    "jshint": "^2.13.4",
-    "@types/node": "^7.10.14",
+    "@types/node": "^20.3.1",
     "@types/yargs": "^15.0.5",
     "eslint": "^7.18.0",
-    "typescript": "^4.1.3"
+    "typescript": "^5.1.3"
   }
 }

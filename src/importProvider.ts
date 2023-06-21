@@ -1,13 +1,14 @@
 'use strict';
-import * as fs from 'fs';
 import * as path from 'path';
+import { existsFile, readFileBinary, readFileUtf8, writeFile } from './file'
 import { alignedLength, guessFileExtension, getBuffer } from './exportProvider';
 
-function readSourceFile(sourceFilename: string): Buffer {
+async function readSourceFile(sourceFilename: string): Promise<Buffer> {
     if (typeof sourceFilename == 'undefined') {
         throw new Error('Input file undefined.');
     }
-    if (!fs.existsSync(sourceFilename)) {
+    const fileExists = await existsFile(sourceFilename)
+    if (!fileExists) {
         throw new Error('File not found.');
     }
 
@@ -16,7 +17,7 @@ function readSourceFile(sourceFilename: string): Buffer {
         Magic: 0x46546C67
     };
 
-    const sourceBuf = fs.readFileSync(sourceFilename);
+    const sourceBuf = await readFileBinary(sourceFilename);
     const readMagic = sourceBuf.readUInt32LE(0);
     if (readMagic !== Binary.Magic) {
         throw new Error('Source file does not appear to be a GLB (glTF Binary) model.');
@@ -35,9 +36,9 @@ function readSourceFile(sourceFilename: string): Buffer {
  * @param sourceFilename input glb filename
  * @param targetFilename output glTF filename
  */
-export function ConvertGLBtoGltf(sourceFilename: string, targetFilename: string) {
-    const sourceBuf = readSourceFile(sourceFilename);
-    doConversion(sourceBuf, path.dirname(sourceFilename), targetFilename);
+export async function ConvertGLBtoGltf(sourceFilename: string, targetFilename: string): Promise<void> {
+    const sourceBuf = await readSourceFile(sourceFilename);
+    await doConversion(sourceBuf, path.dirname(sourceFilename), targetFilename);
 }
 
 /**
@@ -51,16 +52,16 @@ export function ConvertGLBtoGltf(sourceFilename: string, targetFilename: string)
  * @returns the output filename
  */
 export async function ConvertGLBtoGltfLoadFirst(sourceFilename: string, getTargetFilename: () => Promise<string>): Promise<string> {
-    const sourceBuf = readSourceFile(sourceFilename);
+    const sourceBuf = await readSourceFile(sourceFilename);
     const targetFilename = await getTargetFilename();
     if (targetFilename != null) {
-        doConversion(sourceBuf, path.dirname(sourceFilename), targetFilename);
+        await doConversion(sourceBuf, path.dirname(sourceFilename), targetFilename);
     }
 
     return targetFilename;
 }
 
-function doConversion(sourceBuf: Buffer, pathBase: string, targetFilename: string) {
+async function doConversion(sourceBuf: Buffer, pathBase: string, targetFilename: string): Promise<void> {
     // Strip off the '.glb' or other file extension, for use as a base name for external assets.
     let targetBasename = targetFilename;
     if (path.extname(targetFilename).length > 1) {
@@ -84,7 +85,7 @@ function doConversion(sourceBuf: Buffer, pathBase: string, targetFilename: strin
     }
 
     // writes to the filesystem image data from the parameters
-    function writeImageBuf(images: Array<any>, bufferViewIndex: number, binBuffer: Buffer) {
+    async function writeImageBuf(images: Array<any>, bufferViewIndex: number, binBuffer: Buffer) {
         const view = gltf.bufferViews[bufferViewIndex];
         const offset: number = view.byteOffset === undefined ? 0 : view.byteOffset;
         const length: number = view.byteLength;
@@ -94,11 +95,11 @@ function doConversion(sourceBuf: Buffer, pathBase: string, targetFilename: strin
         const extension = guess.extension;
         const imageIndex = gltf.images.indexOf(firstReference);
         const filename = targetBasename + '_img' + imageIndex.toString() + extension;
-        const buf = getBuffer(gltf, view.buffer, pathBase, binBuffer);
+        const buf = await getBuffer(gltf, view.buffer, pathBase, binBuffer);
         if (buf === null) {
             throw new Error('Content of bufferId ' + view.bufferId + ' not found.');
         }
-        fs.writeFileSync(filename, buf.slice(offset, offset + length), 'binary');
+        await writeFile(filename, buf.subarray(offset, offset + length), 'binary');
 
         images.forEach(image => {
             delete image.bufferView;
@@ -118,7 +119,7 @@ function doConversion(sourceBuf: Buffer, pathBase: string, targetFilename: strin
     }
 
     // writes to the filesystem shader data from the parameters
-    function writeShaderBuf(shaders: Array<any>, bufferViewIndex: number, binBuffer: Buffer) {
+    async function writeShaderBuf(shaders: Array<any>, bufferViewIndex: number, binBuffer: Buffer): Promise<void> {
         const view = gltf.bufferViews[bufferViewIndex];
         const offset: number = view.byteOffset === undefined ? 0 : view.byteOffset;
         const length: number = view.byteLength;
@@ -135,11 +136,11 @@ function doConversion(sourceBuf: Buffer, pathBase: string, targetFilename: strin
         const shaderIndex = gltf.shaders.indexOf(firstReference);
         const filename = targetBasename + '_shader' + shaderIndex.toString() + extension;
 
-        const buf = getBuffer(gltf, view.buffer, pathBase, binBuffer);
+        const buf = await getBuffer(gltf, view.buffer, pathBase, binBuffer);
         if (buf === null) {
             throw new Error('Content of bufferId ' + view.bufferId + ' not found.');
         }
-        fs.writeFileSync(filename, buf.slice(offset, offset + length), 'binary');
+        await writeFile(filename, buf.subarray(offset, offset + length), 'binary');
 
         shaders.forEach(shader => {
             delete shader.bufferView;
@@ -148,7 +149,7 @@ function doConversion(sourceBuf: Buffer, pathBase: string, targetFilename: strin
         });
     }
 
-    function writeExtensionBuffer(buffers: { 'buffer': any, 'name': string }[], bufferViewIndex: number, binBuffer: Buffer) {
+    async function writeExtensionBuffer(buffers: { 'buffer': any, 'name': string }[], bufferViewIndex: number, binBuffer: Buffer): Promise<void> {
         const view = gltf.bufferViews[bufferViewIndex];
         const offset: number = view.byteOffset === undefined ? 0 : view.byteOffset;
         const length: number = view.byteLength;
@@ -157,11 +158,11 @@ function doConversion(sourceBuf: Buffer, pathBase: string, targetFilename: strin
         const guess = guessFileExtension(firstReference.buffer.mimeType);
         const extension = guess.extension;
         const filename = targetBasename + '_' + firstReference.name + '_' + bufferViewIndex.toString() + extension;
-        const buf = getBuffer(gltf, view.buffer, pathBase, binBuffer);
+        const buf = await getBuffer(gltf, view.buffer, pathBase, binBuffer);
         if (buf === null) {
             throw new Error('Content of bufferId ' + view.bufferId + ' not found.');
         }
-        fs.writeFileSync(filename, buf.slice(offset, offset + length), 'binary');
+        await writeFile(filename, buf.subarray(offset, offset + length), 'binary');
 
         buffers.forEach(buffer => {
             delete buffer.buffer.bufferView;
@@ -183,7 +184,7 @@ function doConversion(sourceBuf: Buffer, pathBase: string, targetFilename: strin
                         const bufferName = extensionName + '_' + extensionPropertyName;
                         const curBuffers = extensionProperty.filter((b: any) => b.bufferView === bufferViewIndex);
                         for (const buffer in curBuffers) {
-                            buffers.push({'buffer': curBuffers[buffer], 'name': bufferName});
+                            buffers.push({ 'buffer': curBuffers[buffer], 'name': bufferName });
                         }
                     }
                 }
@@ -196,20 +197,20 @@ function doConversion(sourceBuf: Buffer, pathBase: string, targetFilename: strin
     const bufferViewList: number[] = [];
     const bufferDataList: Buffer[] = [];
 
-    function addToBinaryBuf(bufferViewIndex: number, binBuffer: Buffer) {
+    async function addToBinaryBuf(bufferViewIndex: number, binBuffer: Buffer): Promise<void> {
         const view = gltf.bufferViews[bufferViewIndex];
         const offset: number = view.byteOffset === undefined ? 0 : view.byteOffset;
         const length: number = view.byteLength;
         const aLength = alignedLength(length);
         let bufPart: Buffer;
-        const buf = getBuffer(gltf, view.buffer, pathBase, binBuffer);
+        const buf = await getBuffer(gltf, view.buffer, pathBase, binBuffer);
         if (buf === null) {
             throw new Error('Content of bufferId ' + view.bufferId + ' not found.');
         }
         if (length == aLength) {
-            bufPart = buf.slice(offset, offset + length);
+            bufPart = buf.subarray(offset, offset + length);
         } else {
-            bufPart = Buffer.alloc(aLength, buf.slice(offset, offset + length));
+            bufPart = Buffer.alloc(aLength, buf.subarray(offset, offset + length));
         }
 
         bufferViewList.push(bufferViewIndex);
@@ -221,23 +222,23 @@ function doConversion(sourceBuf: Buffer, pathBase: string, targetFilename: strin
         for (let bufferViewIndex = 0; bufferViewIndex < gltf.bufferViews.length; bufferViewIndex++) {
             const images = findImagesForBufferView(bufferViewIndex);
             if (images.length > 0) {
-                writeImageBuf(images, bufferViewIndex, binBuffer);
+                await writeImageBuf(images, bufferViewIndex, binBuffer);
                 continue;
             }
 
             const shaders = findShadersForBufferView(bufferViewIndex);
             if (shaders.length > 0) {
-                writeShaderBuf(shaders, bufferViewIndex, binBuffer);
+                await writeShaderBuf(shaders, bufferViewIndex, binBuffer);
                 continue;
             }
 
             const buffers = findExtensionBuffers(gltf, bufferViewIndex);
             if (buffers.length > 0) {
-                writeExtensionBuffer(buffers, bufferViewIndex, binBuffer);
+                await writeExtensionBuffer(buffers, bufferViewIndex, binBuffer);
                 continue;
             }
 
-            addToBinaryBuf(bufferViewIndex, binBuffer);
+            await addToBinaryBuf(bufferViewIndex, binBuffer);
         }
     }
 
@@ -254,7 +255,7 @@ function doConversion(sourceBuf: Buffer, pathBase: string, targetFilename: strin
         currentOffset += length;
     }
 
-    if (newBufferView.length > 0 ) {
+    if (newBufferView.length > 0) {
         gltf.bufferViews = newBufferView;
     } else {
         delete gltf.bufferViews;
@@ -299,7 +300,7 @@ function doConversion(sourceBuf: Buffer, pathBase: string, targetFilename: strin
     const binFilename = targetBasename + '_data.bin';
     const finalBuffer = Buffer.concat(bufferDataList);
     if (finalBuffer.length > 0) {
-        fs.writeFileSync(binFilename, finalBuffer, 'binary');
+        await writeFile(binFilename, finalBuffer, 'binary');
         gltf.buffers = [{
             uri: path.basename(binFilename),
             byteLength: finalBuffer.length
@@ -310,5 +311,5 @@ function doConversion(sourceBuf: Buffer, pathBase: string, targetFilename: strin
 
     // write out the final GLTF json and open.
     const gltfString = JSON.stringify(gltf, null, '  ');
-    fs.writeFileSync(targetFilename, gltfString, 'utf8');
+    await writeFile(targetFilename, gltfString, 'utf8');
 }

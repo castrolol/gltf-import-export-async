@@ -1,7 +1,10 @@
-# gltf-import-export
+# gltf-import-export-async
 Convert between GLB and GLTF files.
 
-NPM package: https://www.npmjs.com/package/gltf-import-export
+forked from : 
+  https://github.com/najadojo/gltf-import-export-async
+
+NPM package: https://www.npmjs.com/package/gltf-import-export-async
 
 The glTF 3D model format comes in two varieties: *.gltf is a JSON-based text file. *.glb is a binary version, typically smaller and self-contained.
 
@@ -21,7 +24,7 @@ The functions take a parameter for the base .gltf/.glb output filename only. The
 ## Usage
 
 ```javascript
-import { ConvertGLBtoGltf, ConvertGltfToGLB, ConvertToGLB} from 'gltf-import-export';
+import { ConvertGLBtoGltf, ConvertGltfToGLB, ConvertToGLB} from 'gltf-import-export-async';
 
 const inputGlb = 'pathtoyour.glb';
 const extractedGltfFilename = 'newfile.gltf';
@@ -46,7 +49,7 @@ ConvertGltfToGLB(gltfFilename, outputGlb);
 ## Command line tool
 Takes a .glb and exports to a .gltf or takes a .gltf and imports into a .glb.
 ```
-Usage: gltf-import-export <file> [options]
+Usage: gltf-import-export-async <file> [options]
 
 Options:
   --version     Show version number                                    [boolean]
